@@ -20,7 +20,7 @@ description: 'ME314'
 
 ### Where to find the assignment
 
-The mid-term assignment files are available by cloning the [midterm-2018](https://lse-me314.github.io/assignment05/) repository.
+The mid-term assignment files are available by cloning the [midterm-2018](https://lse-me314.github.io/midterm-2018/) repository.
 
 ### How to submit the assignment
 
