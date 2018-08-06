@@ -4,7 +4,7 @@
 
 # ME314 Introduction to Data Science and Big Data 
 
-## Suitable for all candidates          \
+## Suitable for all candidates
 
 
 ### Instructions to candidates  
