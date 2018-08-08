@@ -1,0 +1,259 @@
+---
+title: "Midterm Assignemnt, ME314 2018"
+author: Yiming Xu
+output: html_document
+---
+ 
+![](images/lse-logo.jpg)
+
+#### Summer School 2018 midsession examination  
+
+# ME314 Introduction to Data Science and Big Data 
+
+## Suitable for all candidates
+
+
+### Instructions to candidates  
+
+* Complete the assignment by adding your answers directly to the RMarkdown document, knitting the document, and submitting the HTML file to Moodle.   
+* Time allowed: due 19:00 on Wednesday, 8th August 2018.  
+* Submit the assignment via [Moodle](https://shortcourses.lse.ac.uk/course/view.php?id=158).
+
+
+You will need to load the core library for the course textbook and libraries for LDA and KNN:
+```{r}
+library(ISLR)
+library(MASS)
+library(class)
+library(caret)
+set.seed(201785066) #LSE ID
+```
+
+This question should be answered using the `Weekly` data set, which is part of the `ISLR` package. This data contains 1,089 weekly stock returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+1.   Produce some numerical and graphical summaries of the `Weekly` data. Do there appear to be any patterns?
+
+    The data is summarised as:
+    * Year
+      + The year that the observation was recorded
+    * Lag1
+      + Percentage return for previous week
+    * Lag2
+      + Percentage return for 2 weeks previous
+    * Lag3
+      + Percentage return for 3 weeks previous
+    * Lag4
+      + Percentage return for 4 weeks previous
+    * Lag5
+      + Percentage return for 5 weeks previous
+    * Volume
+      + Volume of shares traded (average number of daily shares traded in billions)
+    * Today
+      + Percentage return for this week
+    * Direction
+      + A factor with levels Down and Up indicating whether the market had a positive or negative return on a given week
+
+```{r}
+#Open and summarize Weekly
+data("Weekly", package = "ISLR")
+
+#To ensure consistency
+Weekly$Direction = factor(Weekly$Direction, levels=c("Down", "Up"))
+summary(Weekly)
+```
+
+```{r, out.width = 1080, fig.align = "center"}
+#Comparing pairs of Weekly features...
+pairs(Weekly, panel = panel.smooth)
+```
+
+```{r}
+#... and checking for covariance
+cov(Filter(is.numeric, Weekly))
+```
+
+```{r}
+#And finally seeing the data itself.
+head(Weekly)
+```
+
+```{r, out.width = 1080, fig.align = "center"}
+#Note that weekly TS has sometimes more than 52 readings for some years. Analysis show that data is read on Tuesdays
+WeeklyTS <- ts(Weekly$Today, frequency = 365.25/7, start=c(1990, 6))
+WeeklyTS_cumsum <- ts(cumsum(Weekly$Today), frequency = 365.25/7, start=c(1990, 6))
+
+par(mar = c(5,5,2,5))
+plot(WeeklyTS_cumsum, col = "red", xlab = NA, ylab = "Cumulative Return since 1990")
+par(new = TRUE)
+plot(WeeklyTS, col = "green", ylab = NA, xlab = "Year", axes = FALSE)
+axis(side = 4)
+mtext(side = 4, line = 3, "Percentage Return for the Week")
+```
+
+2.  Use the full data set to perform a logistic regression with `Direction` as the response and the five lag variables plus `Volume` as predictors. Use the summary function to print the results. 
+
+```{r}
+Weekly_LRfit = glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+                   data = Weekly,
+                   family = binomial)
+summary(Weekly_LRfit)
+```
+
+    Do any of the predictors appear to be statistically significant? If so, which ones?
+
+    The predictor, Lag2, appears to be statistically significant at the p < 0.05 level. The other predictors, namely Lag1, Lag3, Lag4, lag5 and Volume do not appear to be statistically significant predictors for Direction.")
+
+3.  Compute the confusion matrix and overall fraction of correct predictions. 
+
+```{r}
+Weekly_LRpred = factor(ifelse(predict.glm(Weekly_LRfit, Weekly, type = 'response') > 0.5, "Up", "Down"))
+confusionMatrix(data = Weekly_LRpred, reference = Weekly$Direction, positive = "Up", mode = 'everything')
+```
+
+    Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+    The model has an accuracy of 56.11%, with a 95% confidence interval of (53.1%, 59.08%). This compares with a null model (always Up) accuracy of 55.56%. If `Up` is defined as positive, the model has a high sensitive of 92.07%, and a low specificity of 11.16%. 
+
+    Looking at the prediction, we could see that the model achieved this result by predict mostly `Up` (Down vs Up: 102 vs 987). If both Up and Down are desired, it corresponds to the Precision of 56.43%. However, the model is trained and tested using the same, entire dataset. A training and testing set should be used.
+
+
+4.  Now fit the logistic regression model using a training data period from 1990 to 2008, with `Lag2` as the only predictor. 
+
+    Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r}
+Weekly_train <- Weekly[Weekly$Year < 2009,]
+Weekly_test <- Weekly[Weekly$Year > 2008,]
+Weekly_train_LRfit = glm(Direction ~ Lag2,
+                         data = Weekly_train,
+                         family = binomial)
+summary(Weekly_train_LRfit)
+```
+
+```{r}
+Weekly_train_LRpred = factor(ifelse(predict.glm(Weekly_train_LRfit, Weekly_test, type = 'response') > 0.5, "Up", "Down"))
+confusionMatrix(data = Weekly_train_LRpred, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+
+    The accuracy of the model has increased to 62.5% by using only Lag2 as the predictor, with year 1990-2008 as the training set and year 2009-2010 as the test set.
+
+5.  Experiment with different combinations of predictors, including possible transformations and interactions, and classification methods. 
+
+    Using the same predictors and training/test set as the previous question, we can try different classification methods.
+
+```{r}
+#LDA
+Weekly_LDAfit = lda(Direction ~ Lag2,
+                   data = Weekly_train)
+Weekly_LDAfit
+```
+
+```{r}
+Weekly_LDApred = predict(Weekly_LDAfit, Weekly_test)
+confusionMatrix(data = Weekly_LDApred$class, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+
+    Linear discriminant analysis show similar results as logistic regression, with an accuracy of 62.5%. On closer analysis, it appears that the predictions are actually identical. This shows the similarily of the linear approaches. The quadratic discriminant analysis was carried out next.
+
+
+```{r}
+#QDA
+Weekly_QDAfit = qda(Direction ~ Lag2,
+                   data = Weekly_train,
+                   cv = TRUE)
+Weekly_QDAfit
+```
+
+```{r}
+Weekly_QDApred = predict(Weekly_QDAfit, Weekly_test)
+confusionMatrix(data = Weekly_QDApred$class, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+
+    Compared to LDA, QHA has a lower accuracy. It appears that QDA simply opted to predict `Up` for all cases, and is thus identical to the null model. This is shown by its sensitivity of 1 and specificity of 0. QDA is unsuitable for classification for this system.
+
+    For k-nearest neighbour, the parameter `k` could be varied. The model was first tested at `k = 1 and 10`, before optimizing using the caret package.
+
+```{r}
+#KNN
+Weekly_KNNfit = knn(train = subset(Weekly_train, select=c("Lag2")),
+                    test = subset(Weekly_test, select=c("Lag2")), 
+                    cl = Weekly_train$Direction, 
+                    k = 1)
+confusionMatrix(data = Weekly_KNNfit, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+    
+    For `k = 1`, The accuracy was in effect a coin toss at 50%. This would be worse than a null model of `Up` only.
+
+```{r}
+#KNN
+Weekly_KNNfit = knn(train = subset(Weekly_train, select=c("Lag2")),
+                    test = subset(Weekly_test, select=c("Lag2")), 
+                    cl = Weekly_train$Direction, 
+                    k = 10)
+confusionMatrix(data = Weekly_KNNfit, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+    
+    At `k = 10`, the kNN model performed identically to the null model.
+
+```{r}
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated ten times
+                           repeats = 10)
+
+knnFit <- train(Direction ~ Lag2, data = Weekly_train, 
+                 method = "knn", 
+                 trControl = fitControl,
+                 tuneLength = 20)
+knnFit
+```
+
+```{r}
+#KNN
+Weekly_KNNfit = knn(train = subset(Weekly_train, select=c("Lag2")),
+                    test = subset(Weekly_test, select=c("Lag2")), 
+                    cl = Weekly_train$Direction, 
+                    k = 33)
+confusionMatrix(data = Weekly_KNNfit, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+    
+    Even after optimization with caret, the kNN model has failed to improve over the null model. This shows that kNN is not a suitable model for this type of classification. We could next investigation the interaction between the parameters.
+
+```{r}
+Weekly_Interaction_LRfit = glm(Direction ~ Lag1 * Lag2 * Lag3 * Lag4 * Lag5 * Volume,
+                   data = Weekly_train,
+                   family = binomial)
+summary(Weekly_Interaction_LRfit)
+```
+
+```{r}
+Weekly_Interaction_LRpred = factor(ifelse(predict.glm(Weekly_Interaction_LRfit, Weekly_test, type = 'response') > 0.5, "Up", "Down"))
+confusionMatrix(data = Weekly_Interaction_LRpred, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+
+    Including interaction terms in an LDA model show no significant improvement of testing accuracy over using Lag2 as the only predictor. Similarly, modelling interaction terms in LDA, QHA and kNN showed no improvement to the prediction. Lastly, we could replace `Direction` with `Today` and perform a multiple linear regression. This may improve prediction as we could now consider quatitative differences in the result (i.e. a 100% return is different from a 0.01% return).
+
+```{r}
+Weekly_Interaction_LinearRfit = lm(Today ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5,
+                   data = Weekly_train)
+summary(Weekly_Interaction_LinearRfit)
+```
+
+    We could remove `Lag4` and `Lag5` as they are far from statistical significance.
+
+```{r}
+Weekly_Interaction_LinearRfit2 = lm(Today ~ Lag1 + Lag2 + Lag3,
+                   data = Weekly_train)
+summary(Weekly_Interaction_LinearRfit2)
+```
+
+
+```{r}
+Weekly_Interaction_LinearRpred = factor(ifelse(predict.lm(Weekly_Interaction_LinearRfit2, Weekly_test) > 0, "Up", "Down"))
+confusionMatrix(data = Weekly_Interaction_LinearRpred, reference = Weekly_test$Direction, positive = "Up", mode = 'everything')
+```
+
+    The linear regression model has an accuracy of 59.62%, which still falls short of the classification models with `Lag2` as a predictor. However, we could see the relative magnitude and sign of the parameters, as well as their significance. It may be reasonable to see that the more recent returns `Lag1` has a more statistically significant impact on `Today`. However, the sign are opposite - a positive `Lag1` is correlated with a negative `Today` return, and vice versa. This could be due to reversion towards the mean, a noisy nature of the short term stock market.
+
+    Overall, the classifcation models of logistic regression and linear discriminant analysis would perform equally well for this dataset using `Lag2` as a predictor, giving identical predictions, and are the most suitable models. kNN is not suitable for this problem. A regression method may provide additional information on the returns and the past impact. Lastly, interactions between predictors are not shown to be significant in improving the prediction accuracy.
