@@ -209,6 +209,10 @@ knnFit <- train(Direction ~ Lag2, data = Weekly_train,
 knnFit
 ```
 
+```{r, out.width = 1080, fig.align = "center"}
+plot(knnFit)
+```
+
 ```{r}
 #KNN
 Weekly_KNNfit = knn(train = subset(Weekly_train, select=c("Lag2")),
